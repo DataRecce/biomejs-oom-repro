@@ -1,0 +1,46 @@
+# Stack-overflow backtrace excerpt - biomejs/biome#10492
+# Captured under lldb against this reproducer (npm install && npx biome check).
+# Binary: debug build of @biomejs/biome@2.4.12 (first bad version), aarch64-apple-darwin, rustc 1.94.1.
+# Total frames at overflow: 1270. Frame census: flattened_expression x404, resolve_callee_to_function x403, flattened_call x403; every other frame appears once.
+# Crash thread: biome::workspace_worker_N, EXC_BAD_ACCESS on the stack guard page.
+
+## Crash point (frame #0) + recursive cycle (innermost 22 frames)
+    frame #0: 0x0000000100008fe4 biome`_rjem_malloc(size=<unavailable>) at jemalloc.c:2745
+  * frame #0: 0x0000000100008fe4 biome`_rjem_malloc(size=<unavailable>) at jemalloc.c:2745
+    frame #1: 0x0000000100000cb8 biome`alloc at lib.rs:99:13
+    frame #2: 0x000000010000120c biome`__rust_alloc at main.rs:28:16
+    frame #3: 0x00000001035b3c98 biome`alloc at alloc.rs:95:9 [inlined]
+    frame #4: 0x00000001035b3c88 biome`alloc_impl_runtime at alloc.rs:190:73
+    frame #5: 0x00000001035b4014 biome`alloc_impl at alloc.rs:312:9 [inlined]
+    frame #6: 0x00000001035b400c biome`allocate at alloc.rs:429:14
+    frame #7: 0x00000001034f9670 biome`try_new_uninit_in<biome_js_type_info::type_data::Union, alloc::alloc::Global> at boxed.rs:582:19
+    frame #8: 0x00000001034f8be8 biome`new_uninit_in<biome_js_type_info::type_data::Union, alloc::alloc::Global> at boxed.rs:549:15
+    frame #9: 0x00000001034fbb50 biome`clone<biome_js_type_info::type_data::Union, alloc::alloc::Global> at boxed.rs:1974:25
+    frame #10: 0x00000001035a276c biome`clone at type_data.rs:102:11
+    frame #11: 0x00000001035b59e8 biome`to_data at resolver.rs:385:42
+    frame #12: 0x00000001035c28bc biome`flattened_expression at expressions.rs:104:57
+    frame #13: 0x00000001035c567c biome`resolve_callee_to_function at expressions.rs:369:26
+    frame #14: 0x00000001035c1a68 biome`flattened_call at expressions.rs:424:41
+    frame #15: 0x00000001035c28d4 biome`flattened_expression at expressions.rs:104:29
+    frame #16: 0x00000001035c567c biome`resolve_callee_to_function at expressions.rs:369:26
+    frame #17: 0x00000001035c1a68 biome`flattened_call at expressions.rs:424:41
+    frame #18: 0x00000001035c28d4 biome`flattened_expression at expressions.rs:104:29
+    frame #19: 0x00000001035c567c biome`resolve_callee_to_function at expressions.rs:369:26
+    frame #20: 0x00000001035c1a68 biome`flattened_call at expressions.rs:424:41
+
+## ... the 3-frame unit below repeats ~403 times until the worker-thread stack is exhausted ...
+##   flattened_expression (expressions.rs:104)  ->  flattened_call (expressions.rs:424)  ->  resolve_callee_to_function (expressions.rs:369)  ->  (back to flattened_expression)
+
+## How the cycle is entered (base frames - module-graph construction, runs because a type-aware nursery rule is enabled)
+    frame #1222: 0x0000000103585684 biome`flattened at flattening.rs:87:45
+    frame #1223: 0x00000001034ba734 biome`flatten_all at collector.rs:710:53
+    frame #1224: 0x00000001034bfcd8 biome`finalise at collector.rs:384:18
+    frame #1225: 0x000000010349fa7c biome`new at collector.rs:1067:54
+    frame #1226: 0x00000001034c1b3c biome`collect_info at visitor.rs:73:9
+    frame #1227: 0x00000001034d0e14 biome`update_graph_for_js_paths at module_graph.rs:125:39
+    frame #1228: 0x0000000101d42004 biome`update_module_graph_internal at server.rs:1031:43
+    frame #1229: 0x0000000101d3f758 biome`update_service_data at server.rs:1082:27
+    frame #1230: 0x0000000101d3ecbc biome`open_file_internal at server.rs:598:52
+    frame #1233: 0x00000001021f0ba0 biome`do_call<biome_service::scanner::open_file::{closure_env#0}<biome_service::workspace::server::WorkspaceServer>, core::result::Result<(biome_module_graph::module_graph::ModuleDependencies, alloc::vec::Vec<biome_module_graph::diagnostics::ModuleDiagnostic, alloc::alloc::Global>), biome_service::diagnostics::WorkspaceError>> at panicking.rs:581:40
+    frame #1235: 0x0000000101d9318c biome`catch_unwind<core::result::Result<(biome_module_graph::module_graph::ModuleDependencies, alloc::vec::Vec<biome_module_graph::diagnostics::ModuleDiagnostic, alloc::alloc::Global>), biome_service::diagnostics::WorkspaceError>, biome_service::scanner::open_file::{closure_env#0}<biome_service::workspace::server::WorkspaceServer>> at panicking.rs:544:19 [inlined]
+    frame #1236: 0x0000000101d93144 biome`catch_unwind<biome_service::scanner::open_file::{closure_env#0}<biome_service::workspace::server::WorkspaceServer>, core::result::Result<(biome_module_graph::module_graph::ModuleDependencies, alloc::vec::Vec<biome_module_graph::diagnostics::ModuleDiagnostic, alloc::alloc::Global>), biome_service::diagnostics::WorkspaceError>> at panic.rs:359:14
